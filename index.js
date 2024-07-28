@@ -1,3 +1,4 @@
+// Need to enhance the script to handle errors and retries more gracefully, and effectively processes using batch processing
 import fs from 'fs';
 import axios from 'axios';
 import path from 'path';
@@ -45,7 +46,12 @@ async function scrapeJSONMetadata() {
     for (let i = 1; i <= 1000; i++) {
         const fileName = `${i}.json`;
         const fileURL = `${metadataBaseURL}${fileName}`;
-        let responsePromise = axios.get(fileURL);
+        let responsePromise = axios.get(fileURL).catch(async (error) => {
+            // Retry mechanism for failed requests
+            console.error(`Failed to fetch ${fileName}, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
+            return axios.get(fileURL);
+        });
         promisesArray.push(responsePromise);
 
     }
@@ -74,7 +80,12 @@ async function downloadImage(ext, index) {
     const fileName = `${index}.${ext}`;
     const filePath = path.join(assetFolderPath, fileName);
     // function as atomic process intact with await
-    const response = await axios.get(`${imageBaseURL}${index}.${ext}`, { responseType: 'arraybuffer' });
+    const response = await axios.get(`${imageBaseURL}${index}.${ext}`, { responseType: 'arraybuffer' }).catch(async (error) => {
+        // Retry mechanism for failed image downloads
+        console.error(`Failed to download ${fileName}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
+        return axios.get(`${imageBaseURL}${index}.${ext}`, { responseType: 'arraybuffer' });
+    });
     fs.writeFileSync(filePath, response.data);
 }
 
@@ -105,6 +116,8 @@ async function compressImages() {
                 quality: [0.15, 0.3]
             })
         ]
+    }).catch((error) => {
+        console.error(`Error compressing images: ${error.message}`);
     });
 
     console.log(files);
